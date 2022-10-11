@@ -1,0 +1,5 @@
+FROM openjdk:8-jdk-alpine
+MAINTAINER Sarwan
+COPY target/cdms-dropbox-0.0.1-SNAPSHOT.jar /cdms.jar
+ENTRYPOINT ["java","-jar","/cdms.jar"]
+EXPOSE 8080

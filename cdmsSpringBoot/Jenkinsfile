@@ -1,0 +1,70 @@
+pipeline {
+    agent any
+    environment {
+        registry = "sarwansharma/cdms"
+        registryCredential = 'dockerhubcreds'
+        dockerImage = ''
+    }
+    tools {
+        maven "maven"
+    }
+
+//    environment {
+//      registry             = albUtils.getRegistry(registry_type)
+//      registryCredential   = albUtils.getRegistryCredentials(registrytype)
+//      dockerfile           = 'dockerfile'
+//      registryRepo         = "/${application_name.toLowerCase()}/${git_repo}"
+//      CommitID             = 'False'
+//      imageURI             = "${registry}${registryRepo}:${env.BUILD_NUMBER}"
+//      VeraAppid            = "${git_repo}-${env.BUILD_NUMBER}"
+//      VeraAppName          = "cdmswebapp"
+//      AbortOnFail          = false
+//      CompliancePolicy     = 'warn'
+//      VulnerabilityPolicy  = 'warn'
+//      RemoveImageOnPublish = false
+//    }
+
+    stages {
+        stage('CheckOut GitSCM') {
+            steps {
+                checkout([$class: 'GitSCM', branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[credentialsId: '636ed1de-1ff4-4497-bfd2-a6612548179d', url: 'https://github.com/sarwank/cdmsSpringBoot.git']]])
+            }
+        }
+        stage('Build Artifact') {
+            steps {
+                sh 'mvn -B -DskipTests clean install package'
+            }
+        }
+        stage('Docker Build Image') {
+            steps {
+                script {
+                    dockerImage =  docker.build registry + ":$BUILD_NUMBER"
+                }
+            }
+        }
+        stage('Push Image to Registry') {
+            steps {
+                script {
+                    docker.withRegistry( '', registryCredential ) {
+                        dockerImage.push()
+                    }
+                }
+            }
+        }
+        stage('Clean Up Image Locally') {
+            steps {
+                sh "docker rmi $registry:$BUILD_NUMBER"
+            }
+        }
+        stage('Create Octopus Release in Dev') {
+            steps {
+                octopusCreateRelease additionalArgs: '', defaultPackageVersion: '', deploymentTimeout: '', environment: 'Development', gitCommit: '', gitRef: '', project: 'cdmswebapp', releaseNotesFile: '', releaseVersion: '${BUILD_NUMBER}', serverId: 'sarwan.sharma@hotmail.com', spaceId: 'Spaces-1', tenant: '', tenantTag: '', toolId: 'Default', variables: ''
+            }
+        }
+        stage('Deploy Octopus Release in Dev') {
+            steps {
+                octopusDeployRelease additionalArgs: '', deploymentTimeout: '', environment: 'Development', project: 'cdmswebapp', releaseVersion: '${BUILD_NUMBER}', serverId: 'sarwan.sharma@hotmail.com', spaceId: 'Spaces-1', tenant: '', tenantTag: '', toolId: 'Default', variables: '', verboseLogging: 'false', waitForDeployment: 'true'
+            }
+        }
+    }
+}
